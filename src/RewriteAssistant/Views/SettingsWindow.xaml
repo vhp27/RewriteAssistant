@@ -1,0 +1,601 @@
+<Window x:Class="RewriteAssistant.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rewrite Assistant Settings"
+        Width="520" Height="720"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
+        MinWidth="480" MinHeight="500"
+        Background="#F8F9FA">
+    
+    <Window.Resources>
+        <!-- Bool to Visibility Converter -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        
+        <!-- Modern Thin Scrollbar Style -->
+        <Style x:Key="ModernScrollBarThumb" TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumbBorder"
+                                Background="#C1C9D2"
+                                CornerRadius="3"
+                                Margin="1"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumbBorder" Property="Background" Value="#A0AEC0"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumbBorder" Property="Background" Value="#718096"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="ModernScrollBar" TargetType="ScrollBar">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="MinWidth" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ModernScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="ModernScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter Grid.Column="0" CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       Grid.Column="1"
+                                       Style="{StaticResource ModernScrollBar}"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                       Margin="2,0,0,0"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern Toggle Switch Style -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <Border x:Name="Background" 
+                                    Width="46" Height="24" 
+                                    CornerRadius="12" 
+                                    Background="#CBD5E1">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="0" BlurRadius="2" Opacity="0.1" Direction="270"/>
+                                </Border.Effect>
+                            </Border>
+                            <Ellipse x:Name="Thumb" 
+                                     Width="20" Height="20" 
+                                     Fill="White" 
+                                     HorizontalAlignment="Left" 
+                                     Margin="2,0,0,0">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.25"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Background" Property="Background" Value="#009688"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Background" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern TextBox Style -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="False" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"
+                                          Margin="0"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#009688"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern PasswordBox Style -->
+        <Style x:Key="ModernPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="False" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#009688"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern ComboBox Style -->
+        <Style x:Key="ModernComboBox" TargetType="ComboBox">
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <!-- Primary Button Style -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#009688"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#00796B"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#00695C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#B2DFDB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Secondary Button Style -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F8FAFC"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern ListBox Style - No internal scrolling, bubbles to parent -->
+        <Style x:Key="ModernListBox" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.CanContentScroll" Value="False"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ItemsPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="12,10"/>
+                        <Setter Property="Margin" Value="0,0,0,4"/>
+                        <Setter Property="Background" Value="#F8FAFC"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Focusable" Value="True"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="border" 
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#E2E8F0"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#E0F2F1"/>
+                                            <Setter TargetName="border" Property="BorderBrush" Value="#009688"/>
+                                            <Setter TargetName="border" Property="BorderThickness" Value="1"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Section Header Style -->
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        
+        <!-- Label Style -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        
+        <!-- Card Style -->
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect ShadowDepth="0" BlurRadius="8" Opacity="0.06" Direction="270"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="Rewrite Assistant" FontSize="22" FontWeight="SemiBold" Foreground="#1E293B"/>
+            <TextBlock Text="AI-powered text rewriting at your fingertips" FontSize="13" Foreground="#64748B" Margin="0,4,0,0"/>
+        </StackPanel>
+        
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" 
+                      Style="{StaticResource ModernScrollViewer}"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Focusable="False"
+                      PanningMode="VerticalOnly">
+            <StackPanel>
+                <!-- Enable/Disable Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Enable Rewrite Assistant" FontSize="14" FontWeight="Medium" Foreground="#1E293B"/>
+                            <TextBlock Text="Toggle hotkey functionality on/off" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="EnabledToggle" Grid.Column="1" 
+                                  Style="{StaticResource ToggleSwitchStyle}" 
+                                  VerticalAlignment="Center"
+                                  Checked="EnabledToggle_Changed"
+                                  Unchecked="EnabledToggle_Changed"/>
+                    </Grid>
+                </Border>
+                
+                <!-- API Keys Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="API Keys" Style="{StaticResource SectionHeader}"/>
+                        
+                        <TextBlock Text="Primary API Key" Style="{StaticResource FieldLabel}"/>
+                        <PasswordBox x:Name="PrimaryApiKeyBox" Style="{StaticResource ModernPasswordBox}" Margin="0,0,0,14"/>
+                        
+                        <TextBlock Text="Fallback API Key (Optional)" Style="{StaticResource FieldLabel}"/>
+                        <PasswordBox x:Name="FallbackApiKeyBox" Style="{StaticResource ModernPasswordBox}"/>
+                        
+                        <TextBlock Text="🔒 Keys are encrypted and stored locally" FontSize="11" Foreground="#94A3B8" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Default Style Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="Default Rewrite Style" Style="{StaticResource SectionHeader}"/>
+                        <ComboBox x:Name="DefaultStyleCombo" Style="{StaticResource ModernComboBox}"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Prompts Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Prompts" Style="{StaticResource SectionHeader}" Margin="0"/>
+                            <Button x:Name="AddPromptButton" Grid.Column="1" Content="+ New" 
+                                    Click="AddPromptButton_Click"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Padding="14,6" FontSize="12"/>
+                        </Grid>
+                        
+                        <ListBox x:Name="PromptsListBox" 
+                                 Style="{StaticResource ModernListBox}"
+                                 SelectionChanged="PromptsListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="#334155" VerticalAlignment="Center"/>
+                                            <Border Background="#E2E8F0" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
+                                                    Visibility="{Binding IsBuiltIn, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="Built-in" FontSize="10" Foreground="#64748B"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" 
+                                                   Text="{Binding PromptText}" 
+                                                   MaxWidth="140" 
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                            <Button x:Name="EditPromptButton" Content="Edit" 
+                                    Click="EditPromptButton_Click"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="14,6" FontSize="12" Margin="0,0,8,0"
+                                    IsEnabled="False"/>
+                            <Button x:Name="DeletePromptButton" Content="Delete" 
+                                    Click="DeletePromptButton_Click"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="14,6" FontSize="12"
+                                    IsEnabled="False"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Styles Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Rewrite Styles" Style="{StaticResource SectionHeader}" Margin="0"/>
+                            <Button x:Name="AddStyleButton" Grid.Column="1" Content="+ New" 
+                                    Click="AddStyleButton_Click"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Padding="14,6" FontSize="12"/>
+                        </Grid>
+                        
+                        <ListBox x:Name="StylesListBox" 
+                                 Style="{StaticResource ModernListBox}"
+                                 SelectionChanged="StylesListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ToolTip="{Binding PromptPreview}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="#334155" VerticalAlignment="Center"/>
+                                            <Border Background="#E2E8F0" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
+                                                    Visibility="{Binding IsBuiltIn, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="Built-in" FontSize="10" Foreground="#64748B"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" 
+                                                   Text="{Binding PromptName}" 
+                                                   Foreground="#64748B"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0"/>
+                                        <Border Grid.Column="2" Background="#E0F2F1" CornerRadius="4" Padding="8,3">
+                                            <TextBlock Text="{Binding HotkeyDisplay}" 
+                                                       Foreground="#009688"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                            <Button x:Name="EditStyleButton" Content="Edit" 
+                                    Click="EditStyleButton_Click"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="14,6" FontSize="12" Margin="0,0,8,0"
+                                    IsEnabled="False"/>
+                            <Button x:Name="DeleteStyleButton" Content="Delete" 
+                                    Click="DeleteStyleButton_Click"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="14,6" FontSize="12"
+                                    IsEnabled="False"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Startup Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Start with Windows" FontSize="14" FontWeight="Medium" Foreground="#1E293B"/>
+                            <TextBlock Text="Launch automatically at system startup" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="StartWithWindowsCheckbox" Grid.Column="1" 
+                                  Style="{StaticResource ToggleSwitchStyle}" 
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Success Notification Section -->
+                <Border Style="{StaticResource CardBorder}" Margin="0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Show Success Notification" FontSize="14" FontWeight="Medium" Foreground="#1E293B"/>
+                            <TextBlock Text="Display a notification when text is rewritten (icon always flashes)" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="ShowSuccessNotificationCheckbox" Grid.Column="1" 
+                                  Style="{StaticResource ToggleSwitchStyle}" 
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Footer Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" 
+                    Margin="0,0,10,0" Click="CancelButton_Click"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="90" Height="38"/>
+            <Button x:Name="SaveButton" Content="Save" 
+                    Click="SaveButton_Click"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="90" Height="38"/>
+        </StackPanel>
+    </Grid>
+</Window>

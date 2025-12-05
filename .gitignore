@@ -1,0 +1,74 @@
+# =========================
+# .NET / C# / WPF
+# =========================
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pdb
+*.dll
+*.exe
+!staging/*.exe
+
+# Visual Studio
+.vs/
+*.vsidx
+*.lock.json
+
+# =========================
+# Node.js / TypeScript
+# =========================
+node_modules/
+dist/
+*.js.map
+*.tsbuildinfo
+
+# npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Build Outputs
+# =========================
+output/
+staging/
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.local
+.env.*.local
+*.env
+
+# =========================
+# Kiro
+# =========================
+.kiro/
+
+# =========================
+# Misc
+# =========================
+*.log
+*.tmp
+*.temp
+*.cache

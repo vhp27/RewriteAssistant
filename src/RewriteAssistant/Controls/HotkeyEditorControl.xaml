@@ -1,0 +1,104 @@
+<UserControl x:Class="RewriteAssistant.Controls.HotkeyEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True"
+             GotFocus="OnGotFocus"
+             LostFocus="OnLostFocus"
+             PreviewKeyDown="OnPreviewKeyDown"
+             PreviewMouseWheel="OnPreviewMouseWheel">
+    
+    <StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Hotkey display/capture area -->
+            <Border x:Name="HotkeyBorder"
+                    Grid.Column="0"
+                    Background="White"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12,10"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="OnBorderClick">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="0" BlurRadius="2" Opacity="0.04" Direction="270"/>
+                </Border.Effect>
+                
+                <Grid>
+                    <TextBlock x:Name="HotkeyDisplay"
+                               Text="Click to set hotkey"
+                               Foreground="#94A3B8"
+                               FontSize="13"
+                               VerticalAlignment="Center"/>
+                    
+                    <TextBlock x:Name="CapturingText"
+                               Text="Press key combination..."
+                               Foreground="#009688"
+                               FontSize="13"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center"
+                               Visibility="Collapsed"/>
+                </Grid>
+            </Border>
+            
+            <!-- Clear button -->
+            <Button x:Name="ClearButton"
+                    Grid.Column="1"
+                    Width="36"
+                    Height="36"
+                    Margin="8,0,0,0"
+                    ToolTip="Clear hotkey"
+                    Click="OnClearClick"
+                    Visibility="Collapsed"
+                    Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="White"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <TextBlock Text="✕" 
+                                       FontSize="14" 
+                                       Foreground="#64748B"
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FEE2E2"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#FECACA"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FECACA"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+        
+        <!-- Validation error indicator -->
+        <Border x:Name="ErrorBorder"
+                Background="#FEF2F2"
+                BorderBrush="#FECACA"
+                BorderThickness="1"
+                CornerRadius="6"
+                Margin="0,8,0,0"
+                Padding="10,8"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="ErrorIcon" Text="⚠" Foreground="#DC2626" Margin="0,0,8,0" FontSize="12"/>
+                <TextBlock x:Name="ErrorText"
+                           Foreground="#DC2626"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

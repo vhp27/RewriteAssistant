@@ -4,6 +4,8 @@ A Windows desktop application that helps you rewrite and improve text using AI. 
 
 ## How It Works
 
+![Rewrite Assistant Flow](assets/images/rewriteAssistantFlow.jpg)
+
 Rewrite Assistant runs quietly in your system tray and integrates seamlessly with any application:
 
 1. **Select text** in any app (email, document, chat, etc.)
@@ -99,6 +101,13 @@ Configuration is stored in `%APPDATA%\RewriteAssistant\config.json` and includes
 - API key (encrypted)
 - Hotkey settings
 - Custom styles and prompts
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/images/screenshot1.png" alt="Screenshot 1" width="45%" />
+  <img src="assets/images/screenshot2.png" alt="Screenshot 2" width="45%" />
+</p>
 
 ## License
 

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using RewriteAssistant.Models;
 using RewriteAssistant.Services;
 using RewriteAssistant.ViewModels;
@@ -91,6 +93,18 @@ public partial class SettingsWindow : Window
         StylesListBox.ItemsSource = _viewModel.Styles;
         DefaultStyleCombo.ItemsSource = _viewModel.StylesRaw;
         
+        // Load available models and bind to dropdown
+        // This will show fallback models immediately and fetch from API in background
+        _viewModel.LoadModelsWithFallback();
+        ModelCombo.ItemsSource = _viewModel.AvailableModels;
+        SelectModel(_viewModel.SelectedModel);
+        
+        // Re-select model when collection changes (after API fetch completes)
+        _viewModel.AvailableModels.CollectionChanged += (s, e) => 
+        {
+            Dispatcher.Invoke(() => SelectModel(_viewModel.SelectedModel));
+        };
+        
         // Select the default style in the combo box
         SelectDefaultStyle(_viewModel.DefaultStyle);
     }
@@ -106,6 +120,21 @@ public partial class SettingsWindow : Window
         if (DefaultStyleCombo.SelectedItem == null && DefaultStyleCombo.Items.Count > 0)
         {
             DefaultStyleCombo.SelectedIndex = 0;
+        }
+    }
+
+    /// <summary>
+    /// Selects the appropriate item in the model combo box
+    /// Requirements: 6.3
+    /// </summary>
+    private void SelectModel(string modelId)
+    {
+        ModelCombo.SelectedValue = modelId;
+        
+        // Default to first item if not found
+        if (ModelCombo.SelectedItem == null && ModelCombo.Items.Count > 0)
+        {
+            ModelCombo.SelectedIndex = 0;
         }
     }
 
@@ -256,6 +285,16 @@ public partial class SettingsWindow : Window
         _viewModel.PrimaryApiKey = PrimaryApiKeyBox.Password;
         _viewModel.FallbackApiKey = FallbackApiKeyBox.Password;
         
+        // Get selected model from dropdown (Requirements: 6.3)
+        if (ModelCombo.SelectedItem is ViewModels.ModelItem selectedModel)
+        {
+            _viewModel.SelectedModel = selectedModel.Id;
+        }
+        else if (ModelCombo.SelectedValue is string modelId)
+        {
+            _viewModel.SelectedModel = modelId;
+        }
+        
         // Get selected style from dynamic dropdown
         if (DefaultStyleCombo.SelectedItem is CustomStyle selectedStyle)
         {
@@ -299,6 +338,28 @@ public partial class SettingsWindow : Window
         
         // Hide window instead of closing
         Hide();
+    }
+
+    /// <summary>
+    /// Prevents ComboBox from capturing scroll events when dropdown is closed.
+    /// Bubbles the scroll event to the parent ScrollViewer for page scrolling.
+    /// </summary>
+    private void ComboBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is ComboBox comboBox && !comboBox.IsDropDownOpen)
+        {
+            e.Handled = true;
+            var parent = VisualTreeHelper.GetParent(comboBox);
+            while (parent != null && parent is not ScrollViewer)
+            {
+                parent = VisualTreeHelper.GetParent(parent);
+            }
+            
+            if (parent is ScrollViewer scrollViewer)
+            {
+                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - e.Delta);
+            }
+        }
     }
 
     /// <summary>

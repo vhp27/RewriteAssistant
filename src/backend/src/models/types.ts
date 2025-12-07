@@ -41,15 +41,14 @@ export interface CustomStyle {
 /**
  * IPC message types
  */
-export type IPCMessageType = 'rewrite_request' | 'config_update' | 'health_check' | 'prompt_sync';
+export type IPCMessageType = 'rewrite_request' | 'config_update' | 'health_check' | 'list_models';
 
 /**
  * Rewrite request payload
  */
 export interface RewriteRequest {
   text: string;
-  promptId: string;
-  promptText?: string;  // Optional override for custom prompts
+  promptText: string;  // Required - the prompt text to use for rewriting
   requestId: string;
 }
 
@@ -64,28 +63,12 @@ export interface RewriteResponse {
 }
 
 /**
- * Prompt sync payload for updating backend prompts
- */
-export interface PromptSyncPayload {
-  prompts: CustomPrompt[];
-}
-
-/**
- * Prompt sync response
- */
-export interface PromptSyncResponse {
-  success: boolean;
-  message?: string;
-  promptCount: number;
-}
-
-/**
  * Generic IPC message wrapper
  */
 export interface IPCMessage {
   type: IPCMessageType;
   requestId: string;
-  payload: RewriteRequest | ConfigUpdate | PromptSyncPayload | null;
+  payload: RewriteRequest | ConfigUpdate | null;
   timestamp: number;
 }
 
@@ -95,7 +78,7 @@ export interface IPCMessage {
 export interface IPCResponse {
   requestId: string;
   success: boolean;
-  payload: RewriteResponse | ConfigResponse | HealthStatus | PromptSyncResponse;
+  payload: RewriteResponse | ConfigResponse | HealthStatus;
   error?: string;
 }
 
@@ -106,6 +89,8 @@ export interface ConfigUpdate {
   primaryApiKey?: string;
   fallbackApiKey?: string;
   isEnabled?: boolean;
+  /** Selected AI model for rewrite operations - Requirements: 6.3 */
+  selectedModel?: string;
 }
 
 /**
@@ -134,4 +119,33 @@ export interface RewriteResult {
   text?: string;
   error?: string;
   usedFallback: boolean;
+}
+
+/**
+ * List models request payload
+ * Requirements: 6.1
+ */
+export interface ListModelsRequest {
+  apiKey: string;
+}
+
+/**
+ * Cerebras model information
+ * Requirements: 6.1, 6.2
+ */
+export interface CerebrasModelInfo {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+}
+
+/**
+ * List models response payload
+ * Requirements: 6.1
+ */
+export interface ListModelsResponse {
+  success: boolean;
+  models?: CerebrasModelInfo[];
+  error?: string;
 }

@@ -415,13 +415,26 @@
                     </StackPanel>
                 </Border>
                 
+                <!-- AI Model Section -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="AI Model" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="Select the AI model for text rewriting" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox x:Name="ModelCombo" Style="{StaticResource ModernComboBox}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  PreviewMouseWheel="ComboBox_PreviewMouseWheel"/>
+                    </StackPanel>
+                </Border>
+                
                 <!-- Default Style Section -->
                 <Border Style="{StaticResource CardBorder}">
                     <StackPanel>
                         <TextBlock Text="Default Rewrite Style" Style="{StaticResource SectionHeader}"/>
                         <ComboBox x:Name="DefaultStyleCombo" Style="{StaticResource ModernComboBox}"
                                   DisplayMemberPath="Name"
-                                  SelectedValuePath="Id"/>
+                                  SelectedValuePath="Id"
+                                  PreviewMouseWheel="ComboBox_PreviewMouseWheel"/>
                     </StackPanel>
                 </Border>
                 

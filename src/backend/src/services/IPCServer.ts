@@ -5,10 +5,11 @@
  */
 
 import * as net from 'net';
-import { IPCMessage, IPCResponse, RewriteRequest, RewriteResponse, HealthStatus, ConfigUpdate, ConfigResponse, PromptSyncPayload } from '../models/types';
+import { IPCMessage, IPCResponse, RewriteRequest, RewriteResponse, HealthStatus, ConfigUpdate, ConfigResponse, ListModelsRequest, ListModelsResponse } from '../models/types';
 import { RewriteService, rewriteService, IRewriteService } from './RewriteService';
 import { apiKeyManager, IAPIKeyManager, KeyStatus } from './APIKeyManager';
-import { IPromptStore, promptStore } from './PromptStore';
+import { modelService, IModelService } from './ModelService';
+import { cerebrasClient, ICerebrasClient } from './CerebrasClient';
 
 // Named pipe path for Windows
 const PIPE_NAME = '\\\\.\\pipe\\RewriteAssistantIPC';
@@ -32,18 +33,15 @@ export class IPCServer implements IIPCServer {
   private requestHandler: ((request: IPCMessage) => Promise<IPCResponse>) | null = null;
   private rewriteServiceInstance: IRewriteService;
   private keyManagerInstance: IAPIKeyManager;
-  private promptStoreInstance: IPromptStore;
   private startTime: number = Date.now();
   private running: boolean = false;
 
   constructor(
     rewriteServiceInst?: IRewriteService,
-    keyManagerInst?: IAPIKeyManager,
-    promptStoreInst?: IPromptStore
+    keyManagerInst?: IAPIKeyManager
   ) {
     this.rewriteServiceInstance = rewriteServiceInst || rewriteService;
     this.keyManagerInstance = keyManagerInst || apiKeyManager;
-    this.promptStoreInstance = promptStoreInst || promptStore;
   }
 
   /**
@@ -186,8 +184,8 @@ export class IPCServer implements IIPCServer {
         return this.handleHealthCheck(message);
       case 'config_update':
         return this.handleConfigUpdate(message);
-      case 'prompt_sync':
-        return this.handlePromptSync(message);
+      case 'list_models':
+        return this.handleListModels(message);
       default:
         return {
           requestId: message.requestId,
@@ -200,7 +198,7 @@ export class IPCServer implements IIPCServer {
 
   /**
    * Handles rewrite requests
-   * Supports promptId or promptText override
+   * Requires promptText in the request payload
    * Requirements: 2.6
    */
   private async handleRewriteRequest(message: IPCMessage): Promise<IPCResponse> {
@@ -215,11 +213,19 @@ export class IPCServer implements IIPCServer {
       };
     }
 
+    if (!request.promptText) {
+      return {
+        requestId: message.requestId,
+        success: false,
+        payload: { success: false, rewrittenText: undefined, error: 'Invalid request: missing promptText', usedFallbackKey: false },
+        error: 'Invalid request: missing promptText'
+      };
+    }
+
     try {
-      // Build rewrite options from request - prioritize promptText > promptId
+      // Use promptText directly from request
       const result = await this.rewriteServiceInstance.rewrite(request.text, {
-        promptText: request.promptText,
-        promptId: request.promptId
+        promptText: request.promptText
       });
       
       const responsePayload: RewriteResponse = {
@@ -272,6 +278,7 @@ export class IPCServer implements IIPCServer {
 
   /**
    * Handles configuration update requests
+   * Requirements: 6.3
    */
   private handleConfigUpdate(message: IPCMessage): IPCResponse {
     const config = message.payload as ConfigUpdate;
@@ -282,6 +289,10 @@ export class IPCServer implements IIPCServer {
       }
       if (config.fallbackApiKey !== undefined) {
         this.keyManagerInstance.setFallbackKey(config.fallbackApiKey);
+      }
+      // Set selected model on CerebrasClient (Requirement 6.3)
+      if (config.selectedModel !== undefined) {
+        cerebrasClient.setSelectedModel(config.selectedModel);
       }
 
       const configResponse: ConfigResponse = {
@@ -311,46 +322,51 @@ export class IPCServer implements IIPCServer {
   }
 
   /**
-   * Handles prompt sync requests
-   * Updates the PromptStore with new prompts from the frontend
-   * Requirements: 4.2, 4.3
+   * Handles list models requests
+   * Requirements: 6.1, 6.4
    */
-  private handlePromptSync(message: IPCMessage): IPCResponse {
-    const payload = message.payload as PromptSyncPayload;
+  private async handleListModels(message: IPCMessage): Promise<IPCResponse> {
+    const request = message.payload as ListModelsRequest;
     
+    if (!request || !request.apiKey) {
+      const errorResponse: ListModelsResponse = {
+        success: false,
+        error: 'Invalid request: missing apiKey'
+      };
+      return {
+        requestId: message.requestId,
+        success: false,
+        payload: errorResponse,
+        error: 'Invalid request: missing apiKey'
+      };
+    }
+
     try {
-      if (!payload || !Array.isArray(payload.prompts)) {
-        return {
-          requestId: message.requestId,
-          success: false,
-          payload: { success: false, message: 'Invalid prompt sync payload: missing prompts array', promptCount: 0 },
-          error: 'Invalid prompt sync payload: missing prompts array'
-        };
-      }
-
-      // Update the prompt store with the new prompts
-      this.promptStoreInstance.setPrompts(payload.prompts);
-
-      const promptCount = payload.prompts.length;
-      console.log(`Prompt sync completed: ${promptCount} prompts loaded`);
+      const models = await modelService.listModels(request.apiKey);
+      
+      const successResponse: ListModelsResponse = {
+        success: true,
+        models: models
+      };
 
       return {
         requestId: message.requestId,
         success: true,
-        payload: { 
-          success: true, 
-          message: `Successfully synced ${promptCount} prompts`,
-          promptCount 
-        }
+        payload: successResponse
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Prompt sync error:', errorMessage);
+      console.error('Failed to list models:', errorMessage);
       
+      const errorResponse: ListModelsResponse = {
+        success: false,
+        error: errorMessage
+      };
+
       return {
         requestId: message.requestId,
         success: false,
-        payload: { success: false, message: errorMessage, promptCount: 0 },
+        payload: errorResponse,
         error: errorMessage
       };
     }

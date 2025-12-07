@@ -36,9 +36,16 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private AppConfiguration? _config;
     private bool _isShuttingDown;
+    
+    // Backend auto-restart fields (Requirement 4.1)
+    private int _backendRestartAttempts;
+    private const int MaxRestartAttempts = 3;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        // Setup global exception handling first (Requirements: 5.1, 5.2, 5.3)
+        SetupGlobalExceptionHandling();
+        
         Logger.Info("=== Rewrite Assistant Starting ===");
         Logger.Info($"Log file: {Logger.GetLogFilePath()}");
         
@@ -71,6 +78,37 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Sets up global exception handlers to log unhandled exceptions before crash
+    /// Requirements: 5.1, 5.2, 5.3
+    /// </summary>
+    private void SetupGlobalExceptionHandling()
+    {
+        // Handle unhandled exceptions in the application domain (Requirement 5.1)
+        AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            Logger.Error($"Unhandled AppDomain exception (IsTerminating: {args.IsTerminating})", ex);
+        };
+
+        // Handle unhandled exceptions on the dispatcher thread (Requirement 5.2)
+        DispatcherUnhandledException += (sender, args) =>
+        {
+            Logger.Error("Unhandled Dispatcher exception", args.Exception);
+            // Mark as handled to prevent crash for non-fatal errors
+            // The exception is already logged, so we can try to continue
+            args.Handled = true;
+        };
+
+        // Handle unobserved task exceptions (Requirement 5.3)
+        TaskScheduler.UnobservedTaskException += (sender, args) =>
+        {
+            Logger.Error("Unobserved Task exception", args.Exception);
+            // Mark as observed to prevent the process from terminating
+            args.SetObserved();
+        };
+    }
+
+    /// <summary>
     /// Initializes all application services and starts the backend
     /// </summary>
     private async Task InitializeApplicationAsync()
@@ -81,7 +119,7 @@ public partial class App : Application
         Logger.Debug("Loading configuration...");
         _configManager = new ConfigurationManager();
         _config = _configManager.Load();
-        Logger.Info($"Configuration loaded: IsEnabled={_config.IsEnabled}, Hotkeys={_config.Hotkeys?.Count ?? 0}");
+        Logger.Info($"Configuration loaded: IsEnabled={_config.IsEnabled}, Styles={_config.Styles?.Count ?? 0}");
 
         // Initialize cleanup and shutdown services
         _cleanupService = new CleanupService();
@@ -153,10 +191,6 @@ public partial class App : Application
         // Send API keys to backend
         Logger.Info("--- Sending API keys to backend ---");
         await SendApiKeysToBackendAsync();
-
-        // Sync prompts to backend (Requirement 4.2, 4.3)
-        Logger.Info("--- Syncing prompts to backend ---");
-        await SyncPromptsToBackendAsync();
 
         // Register hotkeys from configuration
         Logger.Info("--- Registering hotkeys ---");
@@ -259,6 +293,10 @@ public partial class App : Application
                         Logger.Warn($"Backend stderr: {e.Data}");
                 };
                 
+                // Enable process exit monitoring for auto-restart (Requirement 4.1)
+                _backendProcess.EnableRaisingEvents = true;
+                _backendProcess.Exited += OnBackendProcessExited;
+                
                 _backendProcess.Start();
                 _backendProcess.BeginOutputReadLine();
                 _backendProcess.BeginErrorReadLine();
@@ -324,6 +362,10 @@ public partial class App : Application
                     Logger.Warn($"Backend stderr: {e.Data}");
             };
             
+            // Enable process exit monitoring for auto-restart (Requirement 4.1)
+            _backendProcess.EnableRaisingEvents = true;
+            _backendProcess.Exited += OnBackendProcessExited;
+            
             _backendProcess.Start();
             _backendProcess.BeginOutputReadLine();
             _backendProcess.BeginErrorReadLine();
@@ -336,6 +378,90 @@ public partial class App : Application
         catch (Exception ex)
         {
             Logger.Error("Failed to start backend", ex);
+        }
+    }
+
+    /// <summary>
+    /// Handles backend process exit event for auto-restart functionality
+    /// Requirements: 4.1, 4.3, 4.4
+    /// </summary>
+    private void OnBackendProcessExited(object? sender, EventArgs e)
+    {
+        // Skip restart during intentional shutdown (Requirement 4.3)
+        if (_isShuttingDown)
+        {
+            Logger.Info("Backend process exited during shutdown - not restarting");
+            return;
+        }
+
+        var exitCode = _backendProcess?.ExitCode ?? -1;
+        Logger.Warn($"Backend process exited unexpectedly (exit code: {exitCode})");
+
+        // Check restart attempts (Requirement 4.4)
+        if (_backendRestartAttempts >= MaxRestartAttempts)
+        {
+            Logger.Error($"Backend failed to restart after {MaxRestartAttempts} attempts");
+            
+            // Show notification to user on UI thread
+            Dispatcher.BeginInvoke(() =>
+            {
+                _trayManager?.ShowNotification("Rewrite Assistant", 
+                    "Backend service failed to restart. Please restart the application.");
+            });
+            return;
+        }
+
+        _backendRestartAttempts++;
+        Logger.Info($"Attempting backend restart ({_backendRestartAttempts}/{MaxRestartAttempts})...");
+
+        // Restart on UI thread to ensure proper async handling
+        Dispatcher.BeginInvoke(async () =>
+        {
+            await RestartBackendAsync();
+        });
+    }
+
+    /// <summary>
+    /// Restarts the backend process and re-establishes IPC connection
+    /// Requirements: 4.1, 4.2
+    /// </summary>
+    private async Task RestartBackendAsync()
+    {
+        try
+        {
+            // Clean up old process reference
+            if (_backendProcess != null)
+            {
+                _backendProcess.Exited -= OnBackendProcessExited;
+                _backendProcess.Dispose();
+                _backendProcess = null;
+            }
+
+            // Start new backend process
+            await StartBackendProcessAsync();
+
+            // Re-establish IPC connection (Requirement 4.2)
+            await ConnectToBackendAsync();
+
+            // Send API keys to the new backend instance
+            await SendApiKeysToBackendAsync();
+
+            // Reset restart attempts on successful restart
+            _backendRestartAttempts = 0;
+            Logger.Info("Backend restarted successfully");
+
+            // Update shutdown service with new process reference
+            if (_backendProcess != null)
+            {
+                _shutdownService?.RegisterBackendProcess(_backendProcess);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to restart backend", ex);
+            
+            // If restart failed and we haven't exceeded max attempts, the next Exited event will trigger another attempt
+            // If we have exceeded max attempts, OnBackendProcessExited will show the notification
         }
     }
 
@@ -414,19 +540,20 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Sends API keys from configuration to the backend
+    /// Sends API keys and selected model from configuration to the backend
+    /// Requirements: 6.3
     /// </summary>
     private async Task SendApiKeysToBackendAsync()
     {
         if (_ipcClient == null || _ipcClient.State != ConnectionState.Connected)
         {
-            Logger.Warn("Cannot send API keys - not connected to backend");
+            Logger.Warn("Cannot send config - not connected to backend");
             return;
         }
 
         if (_config == null || _configManager == null)
         {
-            Logger.Warn("Cannot send API keys - configuration not loaded");
+            Logger.Warn("Cannot send config - configuration not loaded");
             return;
         }
 
@@ -445,23 +572,24 @@ public partial class App : Application
             var configUpdate = new ConfigUpdate
             {
                 PrimaryApiKey = primaryKey,
-                FallbackApiKey = fallbackKey
+                FallbackApiKey = fallbackKey,
+                SelectedModel = _config.SelectedModel ?? "gpt-oss-120b"
             };
 
             var response = await _ipcClient.SendConfigUpdateAsync(configUpdate);
             
             if (response.Success)
             {
-                Logger.Info($"✓ API keys sent to backend (Primary: {!string.IsNullOrEmpty(primaryKey)}, Fallback: {!string.IsNullOrEmpty(fallbackKey)})");
+                Logger.Info($"✓ Config sent to backend (Primary: {!string.IsNullOrEmpty(primaryKey)}, Fallback: {!string.IsNullOrEmpty(fallbackKey)}, Model: {_config.SelectedModel})");
             }
             else
             {
-                Logger.Error($"Failed to send API keys to backend: {response.Message}");
+                Logger.Error($"Failed to send config to backend: {response.Message}");
             }
         }
         catch (Exception ex)
         {
-            Logger.Error("Error sending API keys to backend", ex);
+            Logger.Error("Error sending config to backend", ex);
         }
     }
 
@@ -734,48 +862,6 @@ public partial class App : Application
 
         // Send updated API keys to backend
         await SendApiKeysToBackendAsync();
-        
-        // Sync prompts to backend (Requirement 4.2)
-        await SyncPromptsToBackendAsync();
-    }
-
-    /// <summary>
-    /// Syncs prompts to the backend for use in rewrite operations
-    /// Requirements: 4.2, 4.3
-    /// </summary>
-    private async Task SyncPromptsToBackendAsync()
-    {
-        if (_ipcClient == null || _ipcClient.State != ConnectionState.Connected)
-        {
-            Logger.Warn("Cannot sync prompts - not connected to backend");
-            return;
-        }
-
-        if (_config?.Prompts == null || _config.Prompts.Count == 0)
-        {
-            Logger.Warn("No prompts to sync");
-            return;
-        }
-
-        try
-        {
-            Logger.Info($"Syncing {_config.Prompts.Count} prompts to backend...");
-            var response = await _ipcClient.SendPromptSyncAsync(_config.Prompts);
-            
-            if (response.Success)
-            {
-                Logger.Info($"✓ Prompts synced to backend ({response.PromptCount} prompts)");
-            }
-            else
-            {
-                Logger.Warn($"Prompt sync returned failure: {response.Message}");
-            }
-        }
-        catch (Exception ex)
-        {
-            // Handle sync failures gracefully - don't block the user
-            Logger.Error("Failed to sync prompts to backend", ex);
-        }
     }
 
     /// <summary>

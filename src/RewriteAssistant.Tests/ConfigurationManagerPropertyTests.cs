@@ -50,7 +50,7 @@ public class ConfigurationManagerPropertyTests
                 var config = manager.Load();
                 
                 return config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }
@@ -78,7 +78,7 @@ public class ConfigurationManagerPropertyTests
                 try { File.Delete(configPath); } catch { }
                 
                 return config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }
@@ -111,7 +111,7 @@ public class ConfigurationManagerPropertyTests
                 try { File.Delete(configPath); } catch { }
                 
                 return config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }
@@ -130,9 +130,9 @@ public class ConfigurationManagerPropertyTests
             "{",
             "{ \"isEnabled\":",
             "{ \"isEnabled\": true,",
-            "{ \"isEnabled\": true, \"hotkeys\": [",
-            "{ \"isEnabled\": true, \"hotkeys\": [{",
-            "{ \"isEnabled\": true, \"hotkeys\": [{ \"id\":",
+            "{ \"isEnabled\": true, \"styles\": [",
+            "{ \"isEnabled\": true, \"styles\": [{",
+            "{ \"isEnabled\": true, \"styles\": [{ \"id\":",
         };
 
         return Prop.ForAll(
@@ -149,7 +149,7 @@ public class ConfigurationManagerPropertyTests
                 try { File.Delete(configPath); } catch { }
                 
                 return config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }
@@ -167,9 +167,9 @@ public class ConfigurationManagerPropertyTests
         {
             "null",
             "{ \"isEnabled\": null }",
-            "{ \"hotkeys\": null }",
+            "{ \"styles\": null }",
             "{ \"apiKeys\": null }",
-            "{ \"isEnabled\": true, \"hotkeys\": null, \"apiKeys\": null }",
+            "{ \"isEnabled\": true, \"styles\": null, \"apiKeys\": null }",
         };
 
         return Prop.ForAll(
@@ -186,7 +186,7 @@ public class ConfigurationManagerPropertyTests
                 try { File.Delete(configPath); } catch { }
                 
                 return config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }
@@ -215,7 +215,6 @@ public class ConfigurationManagerPropertyTests
                     DefaultStyleId = "grammar_fix",
                     Prompts = new List<CustomPrompt>(),
                     Styles = new List<CustomStyle>(),
-                    Hotkeys = new List<HotkeyConfig>(),
                     ApiKeys = new ApiKeyStorage()
                 };
                 
@@ -242,7 +241,7 @@ public class ConfigurationManagerPropertyTests
         var config = AppConfiguration.CreateDefault();
         
         config.Should().NotBeNull();
-        config.Hotkeys.Should().NotBeNull();
+        config.Styles.Should().NotBeNull();
         config.ApiKeys.Should().NotBeNull();
         var validStyles = new[] 
         {
@@ -311,7 +310,7 @@ public class ConfigurationManagerPropertyTests
                 // Should not throw and should return valid config
                 return caughtException == null && 
                        config != null &&
-                       config.Hotkeys != null &&
+                       config.Styles != null &&
                        config.ApiKeys != null;
             });
     }

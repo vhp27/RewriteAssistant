@@ -136,6 +136,11 @@ try {
     }
     
     Write-Host "  [OK] Backend built successfully" -ForegroundColor Green
+    
+    # Prune dev dependencies to reduce package size
+    Write-Host "  Pruning development dependencies..." -ForegroundColor Cyan
+    npm prune --production
+    Write-Host "  [OK] Dev dependencies removed (typescript, jest, ts-node, @types packages)" -ForegroundColor Green
 } finally {
     Pop-Location
 }

@@ -38,21 +38,29 @@ public interface ITextCaptureService
 }
 
 /// <summary>
+/// Interface for async clipboard capture operations
+/// </summary>
+public interface IAsyncClipboardCapture
+{
+    Task<bool> TryGetTextFromClipboardAsync(TextCaptureResult result);
+}
+
+/// <summary>
 /// Service for capturing text from focused editable fields using Windows UI Automation.
 /// Uses a universal behavior-based approach that works with any application.
-/// Requirements: 1.1, 1.2, 5.1
+/// Requirements: 1.1, 1.2, 5.1, 7.1, 7.2
 /// </summary>
 public class TextCaptureService : ITextCaptureService
 {
     /// <summary>
     /// Captures text from the currently focused editable element
     /// </summary>
-    public Task<TextCaptureResult> CaptureTextAsync()
+    public async Task<TextCaptureResult> CaptureTextAsync()
     {
-        return Task.Run(() => CaptureText());
+        return await CaptureTextInternalAsync();
     }
 
-    private TextCaptureResult CaptureText()
+    private async Task<TextCaptureResult> CaptureTextInternalAsync()
     {
         var result = new TextCaptureResult();
 
@@ -119,7 +127,7 @@ public class TextCaptureService : ITextCaptureService
             if (hasKeyboardFocus || isChromiumBased)
             {
                 Logger.Debug("Trying clipboard-based capture...");
-                if (TryGetTextFromClipboard(result))
+                if (await TryGetTextFromClipboardAsync(result))
                 {
                     result.Success = true;
                     result.IsEditableField = true;
@@ -338,7 +346,7 @@ public class TextCaptureService : ITextCaptureService
     /// Tries to get text using clipboard-based capture (Ctrl+C simulation).
     /// This is a universal method that works for any application supporting standard shortcuts.
     /// </summary>
-    private static bool TryGetTextFromClipboard(TextCaptureResult result)
+    private static async Task<bool> TryGetTextFromClipboardAsync(TextCaptureResult result)
     {
         const int maxRetries = 2;
         
@@ -349,15 +357,15 @@ public class TextCaptureService : ITextCaptureService
                 if (attempt > 0)
                 {
                     Logger.Debug($"Clipboard capture retry attempt {attempt + 1}...");
-                    Thread.Sleep(100);
+                    await Task.Delay(100);
                 }
 
                 var targetWindow = NativeMethods.GetForegroundWindow();
                 Logger.Debug($"Target window handle: 0x{targetWindow:X}");
 
                 // Release all modifier keys to avoid conflicts
-                ReleaseAllModifierKeys();
-                Thread.Sleep(150 + (attempt * 50));
+                InputSimulator.ReleaseAllModifierKeys();
+                await Task.Delay(150 + (attempt * 50));
 
                 // Ensure target window is still in foreground
                 var currentForeground = NativeMethods.GetForegroundWindow();
@@ -365,25 +373,22 @@ public class TextCaptureService : ITextCaptureService
                 {
                     Logger.Debug("Restoring foreground window focus");
                     NativeMethods.SetForegroundWindow(targetWindow);
-                    Thread.Sleep(100);
+                    await Task.Delay(100);
                 }
 
                 // Save current clipboard content
-                string? originalClipboard = null;
-                GetClipboardTextSTA(out originalClipboard);
-                result.Context.OriginalClipboardText = originalClipboard;
+                result.Context.OriginalClipboardText = InputSimulator.GetClipboardText();
 
                 // Clear clipboard
-                ClearClipboardSTA();
-                Thread.Sleep(50);
+                InputSimulator.ClearClipboard();
+                await Task.Delay(50);
 
                 // Try to copy existing selection
                 Logger.Debug("Attempting Ctrl+C for existing selection...");
-                SendCtrlCWithScanCode();
-                Thread.Sleep(250 + (attempt * 50));
+                InputSimulator.SendCtrlC();
+                await Task.Delay(250 + (attempt * 50));
 
-                string? copiedText = null;
-                GetClipboardTextSTA(out copiedText);
+                var copiedText = InputSimulator.GetClipboardText();
 
                 if (!string.IsNullOrEmpty(copiedText))
                 {
@@ -396,16 +401,16 @@ public class TextCaptureService : ITextCaptureService
                 // No selection - try Ctrl+A then Ctrl+C
                 Logger.Debug("No selection found, trying Ctrl+A + Ctrl+C...");
                 
-                ClearClipboardSTA();
-                Thread.Sleep(50);
+                InputSimulator.ClearClipboard();
+                await Task.Delay(50);
 
-                SendCtrlAWithScanCode();
-                Thread.Sleep(250 + (attempt * 50));
+                InputSimulator.SendCtrlA();
+                await Task.Delay(250 + (attempt * 50));
                 
-                SendCtrlCWithScanCode();
-                Thread.Sleep(250 + (attempt * 50));
+                InputSimulator.SendCtrlC();
+                await Task.Delay(250 + (attempt * 50));
 
-                GetClipboardTextSTA(out copiedText);
+                copiedText = InputSimulator.GetClipboardText();
 
                 if (!string.IsNullOrEmpty(copiedText))
                 {
@@ -428,144 +433,12 @@ public class TextCaptureService : ITextCaptureService
     }
 
     /// <summary>
-    /// Gets clipboard text on an STA thread (required for WPF clipboard operations)
+    /// Sends Ctrl+V using SendInput with scan codes.
+    /// Delegates to InputSimulator for centralized implementation.
     /// </summary>
-    private static void GetClipboardTextSTA(out string? text)
-    {
-        string? result = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                if (Clipboard.ContainsText())
-                {
-                    result = Clipboard.GetText();
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug($"Clipboard read error: {ex.Message}");
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join(1000);
-        text = result;
-    }
-
-    /// <summary>
-    /// Clears clipboard on an STA thread
-    /// </summary>
-    private static void ClearClipboardSTA()
-    {
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                Clipboard.Clear();
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug($"Clipboard clear error: {ex.Message}");
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join(1000);
-    }
-
-    /// <summary>
-    /// Releases all modifier keys (Ctrl, Shift, Alt, Win) to prevent conflicts
-    /// </summary>
-    private static void ReleaseAllModifierKeys()
-    {
-        NativeMethods.keybd_event((byte)NativeMethods.VK_CONTROL, 0x1D, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_LCONTROL, 0x1D, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_RCONTROL, 0x1D, NativeMethods.KEYEVENTF_KEYUP | NativeMethods.KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_SHIFT, 0x2A, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_LSHIFT, 0x2A, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_RSHIFT, 0x36, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_MENU, 0x38, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        NativeMethods.keybd_event((byte)NativeMethods.VK_LWIN, 0x5B, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-        
-        var inputs = new NativeMethods.INPUT[8];
-        inputs[0] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, false);
-        inputs[1] = CreateKeyInputWithScan(NativeMethods.VK_LCONTROL, 0x1D, false);
-        inputs[2] = CreateKeyInputWithScan(NativeMethods.VK_SHIFT, 0x2A, false);
-        inputs[3] = CreateKeyInputWithScan(NativeMethods.VK_LSHIFT, 0x2A, false);
-        inputs[4] = CreateKeyInputWithScan(NativeMethods.VK_RSHIFT, 0x36, false);
-        inputs[5] = CreateKeyInputWithScan(NativeMethods.VK_MENU, 0x38, false);
-        inputs[6] = CreateKeyInputWithScan(NativeMethods.VK_LWIN, 0x5B, false);
-        inputs[7] = CreateKeyInputWithScan(NativeMethods.VK_RCONTROL, 0x1D, false);
-        NativeMethods.SendInput((uint)inputs.Length, inputs, NativeMethods.INPUT.Size);
-        
-        Logger.Debug("Released all modifier keys");
-    }
-
-    /// <summary>
-    /// Sends Ctrl+C using SendInput with scan codes
-    /// </summary>
-    private static void SendCtrlCWithScanCode()
-    {
-        var inputs = new NativeMethods.INPUT[4];
-        inputs[0] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, true);
-        inputs[1] = CreateKeyInputWithScan(NativeMethods.VK_C, 0x2E, true);
-        inputs[2] = CreateKeyInputWithScan(NativeMethods.VK_C, 0x2E, false);
-        inputs[3] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, false);
-
-        var sent = NativeMethods.SendInput((uint)inputs.Length, inputs, NativeMethods.INPUT.Size);
-        Logger.Debug($"SendCtrlC: sent {sent} inputs");
-    }
-
-    /// <summary>
-    /// Sends Ctrl+A using SendInput with scan codes
-    /// </summary>
-    private static void SendCtrlAWithScanCode()
-    {
-        var inputs = new NativeMethods.INPUT[4];
-        inputs[0] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, true);
-        inputs[1] = CreateKeyInputWithScan(NativeMethods.VK_A, 0x1E, true);
-        inputs[2] = CreateKeyInputWithScan(NativeMethods.VK_A, 0x1E, false);
-        inputs[3] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, false);
-
-        var sent = NativeMethods.SendInput((uint)inputs.Length, inputs, NativeMethods.INPUT.Size);
-        Logger.Debug($"SendCtrlA: sent {sent} inputs");
-    }
-
-    /// <summary>
-    /// Sends Ctrl+V using SendInput with scan codes
-    /// </summary>
+    [Obsolete("Use InputSimulator.SendCtrlV() directly")]
     public static void SendCtrlVWithScanCode()
     {
-        var inputs = new NativeMethods.INPUT[4];
-        inputs[0] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, true);
-        inputs[1] = CreateKeyInputWithScan(NativeMethods.VK_V, 0x2F, true);
-        inputs[2] = CreateKeyInputWithScan(NativeMethods.VK_V, 0x2F, false);
-        inputs[3] = CreateKeyInputWithScan(NativeMethods.VK_CONTROL, 0x1D, false);
-
-        var sent = NativeMethods.SendInput((uint)inputs.Length, inputs, NativeMethods.INPUT.Size);
-        Logger.Debug($"SendCtrlV: sent {sent} inputs");
-    }
-
-    /// <summary>
-    /// Creates a keyboard input structure with both virtual key and scan code
-    /// </summary>
-    private static NativeMethods.INPUT CreateKeyInputWithScan(ushort vk, ushort scan, bool keyDown)
-    {
-        return new NativeMethods.INPUT
-        {
-            type = NativeMethods.INPUT_KEYBOARD,
-            u = new NativeMethods.InputUnion
-            {
-                ki = new NativeMethods.KEYBDINPUT
-                {
-                    wVk = vk,
-                    wScan = scan,
-                    dwFlags = keyDown ? NativeMethods.KEYEVENTF_SCANCODE : (NativeMethods.KEYEVENTF_SCANCODE | NativeMethods.KEYEVENTF_KEYUP),
-                    time = 0,
-                    dwExtraInfo = IntPtr.Zero
-                }
-            }
-        };
+        InputSimulator.SendCtrlV();
     }
 }

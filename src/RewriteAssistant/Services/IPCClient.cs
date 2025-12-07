@@ -41,7 +41,7 @@ public interface IIPCClient : IDisposable
     Task<RewriteResponse> SendRewriteRequestAsync(RewriteRequest request, CancellationToken cancellationToken = default);
     Task<HealthStatus> SendHealthCheckAsync(CancellationToken cancellationToken = default);
     Task<ConfigResponse> SendConfigUpdateAsync(ConfigUpdate config, CancellationToken cancellationToken = default);
-    Task<PromptSyncResponse> SendPromptSyncAsync(IEnumerable<CustomPrompt> prompts, CancellationToken cancellationToken = default);
+    Task<ListModelsResponse> SendListModelsRequestAsync(string apiKey, CancellationToken cancellationToken = default);
     Task DisconnectAsync();
     ConnectionState State { get; }
     event EventHandler<ConnectionStateEventArgs>? ConnectionStateChanged;
@@ -57,6 +57,16 @@ public class IPCClient : IIPCClient
     private const string PipeName = "RewriteAssistantIPC";
     private const int ConnectionTimeoutMs = 5000;
     private const int ReadTimeoutMs = 30000;
+
+    /// <summary>
+    /// Static JSON serialization options for all IPC communication
+    /// Requirements: 9.1, 9.2
+    /// </summary>
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
 
     private NamedPipeClientStream? _pipeClient;
     private StreamReader? _reader;
@@ -174,26 +184,22 @@ public class IPCClient : IIPCClient
     }
 
     /// <summary>
-    /// Sends a prompt sync to the backend to update available prompts
-    /// Requirements: 4.2, 4.3
+    /// Sends a list models request to the backend
+    /// Requirements: 6.1
     /// </summary>
-    public async Task<PromptSyncResponse> SendPromptSyncAsync(IEnumerable<CustomPrompt> prompts, CancellationToken cancellationToken = default)
+    public async Task<ListModelsResponse> SendListModelsRequestAsync(string apiKey, CancellationToken cancellationToken = default)
     {
-        var payload = new PromptSyncPayload
-        {
-            Prompts = prompts.Select(CustomPromptDto.FromModel).ToList()
-        };
-
+        var request = new ListModelsRequest { ApiKey = apiKey };
         var message = new IPCMessage
         {
-            Type = "prompt_sync",
+            Type = "list_models",
             RequestId = Guid.NewGuid().ToString(),
-            Payload = payload,
+            Payload = request,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
 
-        var response = await SendMessageAsync<PromptSyncResponse>(message, cancellationToken);
-        return response ?? new PromptSyncResponse { Success = false, Message = "Failed to get response from backend" };
+        var response = await SendMessageAsync<ListModelsResponse>(message, cancellationToken);
+        return response ?? new ListModelsResponse { Success = false, Error = "Failed to get response from backend" };
     }
 
     /// <summary>
@@ -220,7 +226,7 @@ public class IPCClient : IIPCClient
         try
         {
             // Serialize and send message
-            var messageJson = JsonSerializer.Serialize(message);
+            var messageJson = JsonSerializer.Serialize(message, JsonOptions);
             Logger.Debug($"Sending IPC message: {messageJson.Substring(0, Math.Min(200, messageJson.Length))}...");
             await _writer.WriteLineAsync(messageJson);
 
@@ -238,7 +244,7 @@ public class IPCClient : IIPCClient
             Logger.Debug($"Received IPC response: {responseJson.Substring(0, Math.Min(200, responseJson.Length))}...");
 
             // Parse response
-            var response = JsonSerializer.Deserialize<IPCResponse>(responseJson);
+            var response = JsonSerializer.Deserialize<IPCResponse>(responseJson, JsonOptions);
             if (response?.Payload == null)
             {
                 Logger.Warn("Response payload is null");
@@ -246,8 +252,8 @@ public class IPCClient : IIPCClient
             }
 
             // Deserialize payload to expected type
-            var payloadJson = JsonSerializer.Serialize(response.Payload);
-            return JsonSerializer.Deserialize<T>(payloadJson);
+            var payloadJson = JsonSerializer.Serialize(response.Payload, JsonOptions);
+            return JsonSerializer.Deserialize<T>(payloadJson, JsonOptions);
         }
         catch (OperationCanceledException)
         {

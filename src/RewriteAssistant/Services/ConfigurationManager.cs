@@ -76,7 +76,6 @@ public class ConfigurationManager : IConfigurationManager
             }
 
             // Ensure collections are initialized
-            config.Hotkeys ??= new List<HotkeyConfig>();
             config.Prompts ??= new List<CustomPrompt>();
             config.Styles ??= new List<CustomStyle>();
             config.ApiKeys ??= new ApiKeyStorage();

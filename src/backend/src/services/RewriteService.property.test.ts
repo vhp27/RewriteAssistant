@@ -12,7 +12,6 @@ import * as fc from 'fast-check';
 import { RewriteService, RewriteOptions } from './RewriteService';
 import { APIKeyManager, IAPIKeyManager, KeyStatus } from './APIKeyManager';
 import { ICerebrasClient, CerebrasError, CerebrasErrorType } from './CerebrasClient';
-import { DEFAULT_PROMPTS } from '../models/defaults';
 
 /**
  * Mock CerebrasClient that can be configured to fail with specific errors
@@ -22,6 +21,7 @@ class MockCerebrasClient implements ICerebrasClient {
   private fallbackKeyBehavior: 'success' | 'quota' | 'rate_limit' | 'token_exhausted' | 'network' | 'invalid_key' = 'success';
   private primaryKey: string | null = null;
   private fallbackKey: string | null = null;
+  private selectedModel: string = 'gpt-oss-120b';
   public callLog: Array<{ text: string; options: RewriteOptions; apiKey: string }> = [];
 
   setPrimaryKey(key: string): void {
@@ -38,6 +38,14 @@ class MockCerebrasClient implements ICerebrasClient {
 
   setFallbackKeyBehavior(behavior: 'success' | 'quota' | 'rate_limit' | 'token_exhausted' | 'network' | 'invalid_key'): void {
     this.fallbackKeyBehavior = behavior;
+  }
+
+  setSelectedModel(model: string): void {
+    this.selectedModel = model;
+  }
+
+  getSelectedModel(): string {
+    return this.selectedModel;
   }
 
   async rewriteWithOptions(text: string, options: RewriteOptions, apiKey: string): Promise<string> {
@@ -71,13 +79,10 @@ class MockCerebrasClient implements ICerebrasClient {
 }
 
 describe('Property 4: API key fallback on quota errors', () => {
-  // All valid prompt IDs from defaults
-  const allPromptIds: string[] = DEFAULT_PROMPTS.map(p => p.id);
-
   // Arbitraries for generating test data
   const textArb = fc.string({ minLength: 1, maxLength: 500 });
   const apiKeyArb = fc.string({ minLength: 10, maxLength: 50 }).filter(s => s.trim().length > 0);
-  const promptIdArb = fc.constantFrom(...allPromptIds);
+  const promptTextArb = fc.string({ minLength: 1, maxLength: 500 });
   
   // Arbitrary for quota-related error types that should trigger fallback
   const quotaErrorArb = fc.constantFrom<'quota' | 'rate_limit' | 'token_exhausted'>(
@@ -98,11 +103,11 @@ describe('Property 4: API key fallback on quota errors', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
         quotaErrorArb,
-        async (text, promptId, primaryKey, fallbackKey, errorType) => {
+        async (text, promptText, primaryKey, fallbackKey, errorType) => {
           // Ensure keys are different
           fc.pre(primaryKey !== fallbackKey);
 
@@ -121,8 +126,8 @@ describe('Property 4: API key fallback on quota errors', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          // Execute rewrite
-          const result = await service.rewrite(text, { promptId });
+          // Execute rewrite with promptText
+          const result = await service.rewrite(text, { promptText });
           
           // Should succeed using fallback
           expect(result.success).toBe(true);
@@ -152,11 +157,11 @@ describe('Property 4: API key fallback on quota errors', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
         quotaErrorArb,
-        async (text, promptId, primaryKey, fallbackKey, errorType) => {
+        async (text, promptText, primaryKey, fallbackKey, errorType) => {
           fc.pre(primaryKey !== fallbackKey);
 
           const mockClient = new MockCerebrasClient();
@@ -172,7 +177,7 @@ describe('Property 4: API key fallback on quota errors', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(text, { promptId });
+          const result = await service.rewrite(text, { promptText });
           
           // Result should contain rewritten text
           expect(result.success).toBe(true);
@@ -198,11 +203,11 @@ describe('Property 4: API key fallback on quota errors', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
         nonQuotaErrorArb,
-        async (text, promptId, primaryKey, fallbackKey, errorType) => {
+        async (text, promptText, primaryKey, fallbackKey, errorType) => {
           fc.pre(primaryKey !== fallbackKey);
 
           const mockClient = new MockCerebrasClient();
@@ -218,7 +223,7 @@ describe('Property 4: API key fallback on quota errors', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(text, { promptId });
+          const result = await service.rewrite(text, { promptText });
           
           // Should fail without trying fallback
           expect(result.success).toBe(false);
@@ -243,12 +248,12 @@ describe('Property 4: API key fallback on quota errors', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
         quotaErrorArb,
         quotaErrorArb,
-        async (text, promptId, primaryKey, fallbackKey, primaryError, fallbackError) => {
+        async (text, promptText, primaryKey, fallbackKey, primaryError, fallbackError) => {
           fc.pre(primaryKey !== fallbackKey);
 
           const mockClient = new MockCerebrasClient();
@@ -264,7 +269,7 @@ describe('Property 4: API key fallback on quota errors', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(text, { promptId });
+          const result = await service.rewrite(text, { promptText });
           
           // Should fail
           expect(result.success).toBe(false);
@@ -293,10 +298,10 @@ describe('Property 4: API key fallback on quota errors', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
-        async (text, promptId, primaryKey, fallbackKey) => {
+        async (text, promptText, primaryKey, fallbackKey) => {
           fc.pre(primaryKey !== fallbackKey);
 
           const mockClient = new MockCerebrasClient();
@@ -315,7 +320,7 @@ describe('Property 4: API key fallback on quota errors', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(text, { promptId });
+          const result = await service.rewrite(text, { promptText });
           
           // Should succeed using fallback
           expect(result.success).toBe(true);
@@ -332,7 +337,6 @@ describe('Property 4: API key fallback on quota errors', () => {
 });
 
 
-
 /**
  * Property 2: Text preservation on failure
  * 
@@ -344,13 +348,10 @@ describe('Property 4: API key fallback on quota errors', () => {
  * and uncorrupted.
  */
 describe('Property 2: Text preservation on failure', () => {
-  // All valid prompt IDs from defaults
-  const allPromptIds: string[] = DEFAULT_PROMPTS.map(p => p.id);
-
   // Arbitraries for generating test data
   const textArb = fc.string({ minLength: 1, maxLength: 500 });
   const apiKeyArb = fc.string({ minLength: 10, maxLength: 50 }).filter(s => s.trim().length > 0);
-  const promptIdArb = fc.constantFrom(...allPromptIds);
+  const promptTextArb = fc.string({ minLength: 1, maxLength: 500 });
 
   // All possible error types that can cause failure
   const allErrorArb = fc.constantFrom<'quota' | 'rate_limit' | 'token_exhausted' | 'network' | 'invalid_key'>(
@@ -373,12 +374,12 @@ describe('Property 2: Text preservation on failure', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         apiKeyArb,
         allErrorArb,
         allErrorArb,
-        async (originalText, promptId, primaryKey, fallbackKey, primaryError, fallbackError) => {
+        async (originalText, promptText, primaryKey, fallbackKey, primaryError, fallbackError) => {
           fc.pre(primaryKey !== fallbackKey);
 
           const mockClient = new MockCerebrasClient();
@@ -395,7 +396,7 @@ describe('Property 2: Text preservation on failure', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(originalText, { promptId });
+          const result = await service.rewrite(originalText, { promptText });
           
           // When both keys fail, result should indicate failure
           // The result.text should either be undefined or not be a corrupted version
@@ -422,9 +423,9 @@ describe('Property 2: Text preservation on failure', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
-        async (originalText, promptId, apiKey) => {
+        async (originalText, promptText, apiKey) => {
           const mockClient = new MockCerebrasClient();
           const keyManager = new APIKeyManager('test-secret');
           
@@ -436,7 +437,7 @@ describe('Property 2: Text preservation on failure', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(originalText, { promptId });
+          const result = await service.rewrite(originalText, { promptText });
           
           // Should fail
           expect(result.success).toBe(false);
@@ -460,9 +461,9 @@ describe('Property 2: Text preservation on failure', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
-        async (originalText, promptId, apiKey) => {
+        async (originalText, promptText, apiKey) => {
           const mockClient = new MockCerebrasClient();
           const keyManager = new APIKeyManager('test-secret');
           
@@ -474,7 +475,7 @@ describe('Property 2: Text preservation on failure', () => {
           
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(originalText, { promptId });
+          const result = await service.rewrite(originalText, { promptText });
           
           // Should fail
           expect(result.success).toBe(false);
@@ -498,15 +499,15 @@ describe('Property 2: Text preservation on failure', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
-        async (originalText, promptId) => {
+        promptTextArb,
+        async (originalText, promptText) => {
           const mockClient = new MockCerebrasClient();
           const keyManager = new APIKeyManager('test-secret');
           
           // Don't set any keys
           const service = new RewriteService(keyManager, mockClient);
           
-          const result = await service.rewrite(originalText, { promptId });
+          const result = await service.rewrite(originalText, { promptText });
           
           // Should fail
           expect(result.success).toBe(false);
@@ -533,10 +534,10 @@ describe('Property 2: Text preservation on failure', () => {
     await fc.assert(
       fc.asyncProperty(
         textArb,
-        promptIdArb,
+        promptTextArb,
         apiKeyArb,
         allErrorArb,
-        async (originalText, promptId, apiKey, errorType) => {
+        async (originalText, promptText, apiKey, errorType) => {
           const mockClient = new MockCerebrasClient();
           const keyManager = new APIKeyManager('test-secret');
           
@@ -550,7 +551,7 @@ describe('Property 2: Text preservation on failure', () => {
           let result;
           let didThrow = false;
           try {
-            result = await service.rewrite(originalText, { promptId });
+            result = await service.rewrite(originalText, { promptText });
           } catch (e) {
             didThrow = true;
           }

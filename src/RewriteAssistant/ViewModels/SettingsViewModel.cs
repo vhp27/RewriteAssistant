@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using RewriteAssistant.Models;
 using RewriteAssistant.Services;
@@ -159,6 +160,8 @@ public class SettingsViewModel : INotifyPropertyChanged
     private string _defaultStyle = "grammar_fix";
     private string _primaryApiKey = string.Empty;
     private string _fallbackApiKey = string.Empty;
+    private string _selectedModel = "gpt-oss-120b";
+    private bool _isLoadingModels;
     
     // Prompt management
     private PromptListItem? _selectedPrompt;
@@ -230,6 +233,12 @@ public class SettingsViewModel : INotifyPropertyChanged
     /// Collection of raw CustomPrompt objects
     /// </summary>
     public ObservableCollection<CustomPrompt> PromptsRaw { get; } = new();
+    
+    /// <summary>
+    /// Collection of available AI models for dropdown
+    /// Requirements: 6.1, 6.2
+    /// </summary>
+    public ObservableCollection<ModelItem> AvailableModels { get; } = new();
     
     /// <summary>
     /// Currently selected prompt in the list
@@ -413,6 +422,39 @@ public class SettingsViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Selected AI model for rewrite operations
+    /// Requirements: 6.3
+    /// </summary>
+    public string SelectedModel
+    {
+        get => _selectedModel;
+        set
+        {
+            if (_selectedModel != value)
+            {
+                _selectedModel = value ?? "gpt-oss-120b";
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether models are currently being loaded
+    /// </summary>
+    public bool IsLoadingModels
+    {
+        get => _isLoadingModels;
+        set
+        {
+            if (_isLoadingModels != value)
+            {
+                _isLoadingModels = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
     /// Loads settings from the configuration
     /// </summary>
     private void LoadFromConfig()
@@ -421,6 +463,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         _startWithWindows = _config.StartWithWindows;
         _showSuccessNotification = _config.ShowSuccessNotification;
         _defaultStyle = _config.DefaultStyleId;
+        _selectedModel = _config.SelectedModel ?? "gpt-oss-120b";
         
         // Decrypt API keys for display
         _primaryApiKey = _configManager.GetPrimaryApiKey(_config) ?? string.Empty;
@@ -441,6 +484,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(DefaultStyle));
         OnPropertyChanged(nameof(PrimaryApiKey));
         OnPropertyChanged(nameof(FallbackApiKey));
+        OnPropertyChanged(nameof(SelectedModel));
     }
 
 
@@ -525,6 +569,7 @@ public class SettingsViewModel : INotifyPropertyChanged
             _config.StartWithWindows = _startWithWindows;
             _config.ShowSuccessNotification = _showSuccessNotification;
             _config.DefaultStyleId = _defaultStyle;
+            _config.SelectedModel = _selectedModel;
 
             // Encrypt and store API keys
             _configManager.SetPrimaryApiKey(_config, _primaryApiKey);
@@ -592,6 +637,80 @@ public class SettingsViewModel : INotifyPropertyChanged
                 IsBuiltIn = s.IsBuiltIn,
                 Hotkey = s.Hotkey
             });
+        }
+    }
+
+    /// <summary>
+    /// Loads available AI models from the backend with fallback to known models
+    /// Requirements: 6.1, 6.2, 6.4
+    /// </summary>
+    public void LoadModelsWithFallback()
+    {
+        // Start with fallback models immediately for responsive UI
+        AvailableModels.Clear();
+        foreach (var modelId in AppConfiguration.KnownModels)
+        {
+            AvailableModels.Add(new ModelItem(modelId, "cerebras"));
+        }
+        
+        // Try to fetch from API in background if we have an API key
+        if (!string.IsNullOrWhiteSpace(_primaryApiKey))
+        {
+            _ = LoadModelsFromApiAsync(_primaryApiKey);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously loads models from the Cerebras API via backend
+    /// Requirements: 6.1, 6.2
+    /// </summary>
+    public async Task LoadModelsFromApiAsync(string apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return;
+        }
+
+        IsLoadingModels = true;
+        
+        try
+        {
+            using var ipcClient = new IPCClient();
+            var connected = await ipcClient.ConnectAsync();
+            
+            if (!connected)
+            {
+                Logger.Warn("Could not connect to backend for model listing, using fallback models");
+                return;
+            }
+
+            var response = await ipcClient.SendListModelsRequestAsync(apiKey);
+            
+            if (response.Success && response.Models != null && response.Models.Count > 0)
+            {
+                // Update on UI thread
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    AvailableModels.Clear();
+                    foreach (var model in response.Models)
+                    {
+                        AvailableModels.Add(new ModelItem(model.Id, model.OwnedBy ?? "cerebras"));
+                    }
+                    Logger.Info($"Loaded {response.Models.Count} models from Cerebras API");
+                });
+            }
+            else
+            {
+                Logger.Warn($"Failed to load models from API: {response.Error ?? "Unknown error"}, using fallback models");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Exception loading models from API: {ex.Message}, using fallback models");
+        }
+        finally
+        {
+            IsLoadingModels = false;
         }
     }
 
@@ -826,4 +945,43 @@ public class StyleDeleteEventArgs : EventArgs
     {
         Style = style;
     }
+}
+
+/// <summary>
+/// View model for displaying AI models in the dropdown
+/// Requirements: 6.1, 6.2
+/// </summary>
+public class ModelItem : INotifyPropertyChanged
+{
+    private string _id = string.Empty;
+    private string _ownedBy = string.Empty;
+
+    public string Id
+    {
+        get => _id;
+        set { _id = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayName)); }
+    }
+
+    public string OwnedBy
+    {
+        get => _ownedBy;
+        set { _ownedBy = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayName)); }
+    }
+
+    /// <summary>
+    /// Display name for the dropdown showing model ID and owner
+    /// </summary>
+    public string DisplayName => string.IsNullOrEmpty(_ownedBy) ? _id : $"{_id} ({_ownedBy})";
+
+    public ModelItem() { }
+
+    public ModelItem(string id, string ownedBy)
+    {
+        _id = id;
+        _ownedBy = ownedBy;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

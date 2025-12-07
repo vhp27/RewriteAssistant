@@ -32,6 +32,24 @@ public class AppConfiguration
     public string DefaultStyleId { get; set; } = "grammar_fix";
 
     /// <summary>
+    /// Selected AI model for rewrite operations
+    /// Requirements: 6.3, 6.5
+    /// </summary>
+    [JsonPropertyName("selectedModel")]
+    public string SelectedModel { get; set; } = "gpt-oss-120b";
+
+    /// <summary>
+    /// Fallback list of known models when API is unavailable
+    /// Requirements: 6.4
+    /// </summary>
+    public static readonly string[] KnownModels = new[]
+    {
+        "gpt-oss-120b",
+        "llama-3.3-70b",
+        "qwen-3-32b"
+    };
+
+    /// <summary>
     /// List of custom prompts
     /// </summary>
     [JsonPropertyName("prompts")]
@@ -42,12 +60,6 @@ public class AppConfiguration
     /// </summary>
     [JsonPropertyName("styles")]
     public List<CustomStyle> Styles { get; set; } = new();
-
-    /// <summary>
-    /// Legacy hotkey configurations (for backward compatibility during migration)
-    /// </summary>
-    [JsonPropertyName("hotkeys")]
-    public List<HotkeyConfig> Hotkeys { get; set; } = new();
 
     /// <summary>
     /// API key storage (encrypted)
@@ -73,7 +85,7 @@ public class AppConfiguration
                 {
                     Id = "grammar_fix_prompt",
                     Name = "Grammar Fix",
-                    PromptText = "You are a text editor that fixes grammar and spelling errors. Preserve the original meaning and tone. Return ONLY the corrected text without any explanations, comments, or formatting.",
+                    PromptText = "You are a text editor that fixes grammar and spelling errors. Preserve the original meaning and tone. Output your result in the required JSON format.",
                     IsBuiltIn = true,
                     CreatedAt = now,
                     ModifiedAt = now
@@ -82,7 +94,7 @@ public class AppConfiguration
                 {
                     Id = "formal_tone_prompt",
                     Name = "Formal Tone",
-                    PromptText = "You are a text editor that rewrites text in a formal, professional tone. Return ONLY the rewritten text without any explanations, comments, or formatting.",
+                    PromptText = "You are a text editor that rewrites text in a formal, professional tone. Output your result in the required JSON format.",
                     IsBuiltIn = true,
                     CreatedAt = now,
                     ModifiedAt = now
@@ -91,7 +103,7 @@ public class AppConfiguration
                 {
                     Id = "casual_tone_prompt",
                     Name = "Casual Tone",
-                    PromptText = "You are a text editor that rewrites text in a casual, friendly tone. Return ONLY the rewritten text without any explanations, comments, or formatting.",
+                    PromptText = "You are a text editor that rewrites text in a casual, friendly tone. Output your result in the required JSON format.",
                     IsBuiltIn = true,
                     CreatedAt = now,
                     ModifiedAt = now
@@ -100,7 +112,7 @@ public class AppConfiguration
                 {
                     Id = "shorten_text_prompt",
                     Name = "Shorten Text",
-                    PromptText = "You are a text editor that shortens text while preserving the key message. Return ONLY the shortened text without any explanations, comments, or formatting.",
+                    PromptText = "You are a text editor that shortens text while preserving the key message. Output your result in the required JSON format.",
                     IsBuiltIn = true,
                     CreatedAt = now,
                     ModifiedAt = now
@@ -109,7 +121,7 @@ public class AppConfiguration
                 {
                     Id = "expand_text_prompt",
                     Name = "Expand Text",
-                    PromptText = "You are a text editor that expands text with more detail and clarity. Return ONLY the expanded text without any explanations, comments, or formatting.",
+                    PromptText = "You are a text editor that expands text with more detail and clarity. Output your result in the required JSON format.",
                     IsBuiltIn = true,
                     CreatedAt = now,
                     ModifiedAt = now
@@ -173,7 +185,6 @@ public class AppConfiguration
                     IsBuiltIn = true
                 }
             },
-            Hotkeys = new List<HotkeyConfig>(), // Legacy - kept empty for backward compatibility
             ApiKeys = new ApiKeyStorage()
         };
     }

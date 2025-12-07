@@ -11,16 +11,17 @@ public class RewriteRequest
     public string Text { get; set; } = string.Empty;
 
     /// <summary>
-    /// Prompt ID for the rewrite style
+    /// Prompt ID for the rewrite style (kept for logging/debugging)
     /// </summary>
     [JsonPropertyName("promptId")]
     public string PromptId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional prompt text override for custom prompts
+    /// The complete prompt text to use for the rewrite operation.
+    /// Backend uses this directly without any lookup.
     /// </summary>
     [JsonPropertyName("promptText")]
-    public string? PromptText { get; set; }
+    public string PromptText { get; set; } = string.Empty;
 
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
@@ -108,6 +109,13 @@ public class ConfigUpdate
 
     [JsonPropertyName("fallbackApiKey")]
     public string? FallbackApiKey { get; set; }
+
+    /// <summary>
+    /// Selected AI model for rewrite operations
+    /// Requirements: 6.3
+    /// </summary>
+    [JsonPropertyName("selectedModel")]
+    public string? SelectedModel { get; set; }
 }
 
 /// <summary>
@@ -123,58 +131,48 @@ public class ConfigResponse
 }
 
 /// <summary>
-/// Prompt sync payload for updating backend prompts
-/// Requirements: 4.2, 4.3
+/// List models request sent to the Node.js backend
+/// Requirements: 6.1
 /// </summary>
-public class PromptSyncPayload
+public class ListModelsRequest
 {
-    [JsonPropertyName("prompts")]
-    public List<CustomPromptDto> Prompts { get; set; } = new();
+    [JsonPropertyName("apiKey")]
+    public string ApiKey { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// DTO for CustomPrompt to send via IPC
+/// Cerebras model information
+/// Requirements: 6.1, 6.2
 /// </summary>
-public class CustomPromptDto
+public class CerebrasModel
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("object")]
+    public string Object { get; set; } = "model";
 
-    [JsonPropertyName("promptText")]
-    public string PromptText { get; set; } = string.Empty;
+    [JsonPropertyName("created")]
+    public long Created { get; set; }
 
-    [JsonPropertyName("isBuiltIn")]
-    public bool IsBuiltIn { get; set; }
-
-    /// <summary>
-    /// Creates a DTO from a CustomPrompt model
-    /// </summary>
-    public static CustomPromptDto FromModel(CustomPrompt prompt)
-    {
-        return new CustomPromptDto
-        {
-            Id = prompt.Id,
-            Name = prompt.Name,
-            PromptText = prompt.PromptText,
-            IsBuiltIn = prompt.IsBuiltIn
-        };
-    }
+    [JsonPropertyName("owned_by")]
+    public string OwnedBy { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// Prompt sync response from the Node.js backend
+/// List models response from the Node.js backend
+/// Requirements: 6.1
 /// </summary>
-public class PromptSyncResponse
+public class ListModelsResponse
 {
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 
-    [JsonPropertyName("message")]
-    public string? Message { get; set; }
+    [JsonPropertyName("models")]
+    public List<CerebrasModel>? Models { get; set; }
 
-    [JsonPropertyName("promptCount")]
-    public int PromptCount { get; set; }
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
 }
+
+

@@ -16,9 +16,9 @@ export { RewriteOptions } from './CerebrasClient';
  */
 export interface IRewriteService {
   /**
-   * Rewrites text using promptId or promptText
+   * Rewrites text using promptText
    * @param text - The text to rewrite
-   * @param options - Rewrite options including promptId or promptText
+   * @param options - Rewrite options including promptText (required)
    */
   rewrite(text: string, options: RewriteOptions): Promise<RewriteResult>;
 }
@@ -41,9 +41,8 @@ export class RewriteService implements IRewriteService {
 
   /**
    * Rewrites text using the configured API keys with automatic fallback
-   * Supports promptId or promptText override
    * @param text - The text to rewrite
-   * @param options - Rewrite options including promptId or promptText
+   * @param options - Rewrite options including promptText (required)
    * @returns RewriteResult with success status and rewritten text or error
    * Requirements: 2.6
    */

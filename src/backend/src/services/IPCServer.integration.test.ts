@@ -18,15 +18,23 @@ import {
   ConfigUpdate,
   ConfigResponse
 } from '../models/types';
-import { DEFAULT_PROMPTS } from '../models/defaults';
 
 /**
  * Mock CerebrasClient for testing
  */
 class MockCerebrasClient implements ICerebrasClient {
+  private selectedModel: string = 'gpt-oss-120b';
+
+  setSelectedModel(model: string): void {
+    this.selectedModel = model;
+  }
+
+  getSelectedModel(): string {
+    return this.selectedModel;
+  }
+
   async rewriteWithOptions(text: string, options: RewriteOptions, apiKey: string): Promise<string> {
-    const promptId = options.promptId || 'grammar_fix_prompt';
-    return `Rewritten (${promptId}): ${text}`;
+    return `Rewritten: ${text}`;
   }
 }
 
@@ -56,6 +64,7 @@ class TestIPCServer {
     if (this.server) {
       throw new Error('Server is already running');
     }
+
 
     return new Promise((resolve, reject) => {
       this.server = net.createServer((socket) => {
@@ -176,10 +185,18 @@ class TestIPCServer {
       };
     }
 
+    if (!request.promptText) {
+      return {
+        requestId: message.requestId,
+        success: false,
+        payload: { success: false, rewrittenText: undefined, error: 'Invalid request: missing promptText', usedFallbackKey: false },
+        error: 'Invalid request: missing promptText'
+      };
+    }
+
     try {
       const result = await this.rewriteServiceInstance.rewrite(request.text, {
-        promptText: request.promptText,
-        promptId: request.promptId
+        promptText: request.promptText
       });
       
       const responsePayload: RewriteResponse = {
@@ -331,8 +348,14 @@ describe('IPC Communication Integration Tests', () => {
   let rewriteService: RewriteService;
   let pipeName: string;
 
-  // All valid prompt IDs from defaults
-  const allPromptIds: string[] = DEFAULT_PROMPTS.map(p => p.id);
+  // Sample prompt texts for testing
+  const samplePromptTexts = [
+    'Fix grammar and spelling errors.',
+    'Rewrite in a formal tone.',
+    'Make this text more casual.',
+    'Shorten this text.',
+    'Expand this text with more detail.'
+  ];
 
   beforeEach(async () => {
     pipeName = getUniquePipeName();
@@ -361,7 +384,7 @@ describe('IPC Communication Integration Tests', () => {
           requestId: 'test-123',
           payload: {
             text: 'Hello world',
-            promptId: 'grammar_fix_prompt',
+            promptText: 'Fix grammar and spelling errors.',
             requestId: 'test-123'
           },
           timestamp: Date.now()
@@ -469,18 +492,18 @@ describe('IPC Communication Integration Tests', () => {
       }
     });
 
-    it('should handle all prompt IDs correctly', async () => {
+    it('should handle various prompt texts correctly', async () => {
       const client = await createClient(pipeName);
       
       try {
-        for (const promptId of allPromptIds) {
+        for (const promptText of samplePromptTexts) {
           const message: IPCMessage = {
             type: 'rewrite_request',
-            requestId: `prompt-${promptId}`,
+            requestId: `prompt-test-${samplePromptTexts.indexOf(promptText)}`,
             payload: {
               text: 'Test text',
-              promptId: promptId,
-              requestId: `prompt-${promptId}`
+              promptText: promptText,
+              requestId: `prompt-test-${samplePromptTexts.indexOf(promptText)}`
             },
             timestamp: Date.now()
           };
@@ -489,7 +512,7 @@ describe('IPC Communication Integration Tests', () => {
           
           expect(response.success).toBe(true);
           const payload = response.payload as RewriteResponse;
-          expect(payload.rewrittenText).toContain(promptId);
+          expect(payload.rewrittenText).toContain('Rewritten');
         }
       } finally {
         client.destroy();
@@ -505,7 +528,7 @@ describe('IPC Communication Integration Tests', () => {
           requestId: 'empty-text',
           payload: {
             text: '',
-            promptId: 'grammar_fix_prompt',
+            promptText: 'Fix grammar.',
             requestId: 'empty-text'
           },
           timestamp: Date.now()
@@ -515,6 +538,31 @@ describe('IPC Communication Integration Tests', () => {
         
         expect(response.success).toBe(false);
         expect(response.error).toContain('missing text');
+      } finally {
+        client.destroy();
+      }
+    });
+
+    it('should handle missing promptText in rewrite request', async () => {
+      const client = await createClient(pipeName);
+      
+      try {
+        // Cast to any to bypass TypeScript check for testing
+        const message: IPCMessage = {
+          type: 'rewrite_request',
+          requestId: 'missing-prompt',
+          payload: {
+            text: 'Hello world',
+            promptText: '',  // Empty promptText
+            requestId: 'missing-prompt'
+          },
+          timestamp: Date.now()
+        };
+
+        const response = await sendMessage(client, message);
+        
+        expect(response.success).toBe(false);
+        expect(response.error).toContain('missing promptText');
       } finally {
         client.destroy();
       }

@@ -5,7 +5,7 @@
 [Setup]
 ; App metadata
 AppName=Rewrite Assistant
-AppVersion=1.0.0
+AppVersion=1.2.0
 AppPublisher=Rewrite Assistant Team
 AppPublisherURL=https://github.com/yourusername/rewrite-assistant
 AppSupportURL=https://github.com/yourusername/rewrite-assistant/issues

@@ -2,7 +2,7 @@
 # This script automates the entire build and packaging process
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.2.0",
     [switch]$SkipClean = $false
 )
 
@@ -121,11 +121,9 @@ Write-Host "[3/7] Building Node.js backend..." -ForegroundColor Yellow
 
 Push-Location $BackendDir
 try {
-    # Install dependencies if needed
-    if (-not (Test-Path "node_modules")) {
-        Write-Host "  Installing backend dependencies..." -ForegroundColor Cyan
-        npm install
-    }
+    # Always install dependencies (including devDependencies for TypeScript)
+    Write-Host "  Installing backend dependencies..." -ForegroundColor Cyan
+    npm install
     
     # Build TypeScript to JavaScript
     Write-Host "  Compiling TypeScript..." -ForegroundColor Cyan
